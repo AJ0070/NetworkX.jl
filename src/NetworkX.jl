@@ -62,6 +62,11 @@ function refresh_index!(g::AbstractNetworkXGraph{T}) where {T<:Integer}
 	return g
 end
 
+function _refresh_index_from_nodes!(g::AbstractNetworkXGraph{T}) where {T<:Integer}
+	g.node_to_index = _node_to_index(g.nodes, T)
+	return g
+end
+
 function NetworkXGraph{T}(pygraph::Py) where {T<:Integer}
 	pyconvert(Bool, pygraph.is_directed()) &&
 		throw(ArgumentError("Expected an undirected networkx.Graph."))
@@ -179,6 +184,7 @@ end
 function Graphs.add_edge!(g::AbstractNetworkXGraph, s, d)
 	Graphs.has_vertex(g, s) || return false
 	Graphs.has_vertex(g, d) || return false
+	Graphs.has_edge(g, s, d) && return false
 	g.pygraph.add_edge(_node(g, s), _node(g, d))
 	return true
 end
@@ -214,7 +220,8 @@ function Graphs.rem_vertices!(g::AbstractNetworkXGraph{T}, vs; keep_order::Bool=
 			g.pygraph.remove_node(_node(g, v))
 		end
 	end
-	refresh_index!(g)
+	g.nodes = [g.nodes[v] for v in old_vertices if !(v in remove_set)]
+	_refresh_index_from_nodes!(g)
 	vmap = zeros(T, length(old_vertices))
 	new_index = one(T)
 	for v in old_vertices
@@ -227,17 +234,35 @@ function Graphs.rem_vertices!(g::AbstractNetworkXGraph{T}, vs; keep_order::Bool=
 end
 
 function Graphs.squash(g::AbstractNetworkXGraph{T}) where {T<:Integer}
-	return wrap_networkx(g.pygraph.copy(); T=Int), collect(Graphs.vertices(g))
+	copyg = wrap_networkx(g.pygraph.copy(); T=Int)
+	copyg.nodes = copy(g.nodes)
+	_refresh_index_from_nodes!(copyg)
+	return copyg, collect(Graphs.vertices(g))
 end
 
 Graphs.zero(::Type{<:NetworkXGraph{T}}) where {T<:Integer} = wrap_networkx(_nx().Graph(); T=T)
 Graphs.zero(::Type{<:NetworkXDiGraph{T}}) where {T<:Integer} =
 	wrap_networkx(_nx().DiGraph(); T=T)
 
-Base.copy(g::NetworkXGraph{T}) where {T<:Integer} = NetworkXGraph{T}(g.pygraph.copy())
-Base.copy(g::NetworkXDiGraph{T}) where {T<:Integer} = NetworkXDiGraph{T}(g.pygraph.copy())
+function Base.copy(g::NetworkXGraph{T}) where {T<:Integer}
+	copyg = NetworkXGraph{T}(g.pygraph.copy())
+	copyg.nodes = copy(g.nodes)
+	copyg.node_to_index = copy(g.node_to_index)
+	return copyg
+end
 
-Base.reverse(g::NetworkXDiGraph{T}) where {T<:Integer} =
-	NetworkXDiGraph{T}(g.pygraph.reverse(copy=true))
+function Base.copy(g::NetworkXDiGraph{T}) where {T<:Integer}
+	copyg = NetworkXDiGraph{T}(g.pygraph.copy())
+	copyg.nodes = copy(g.nodes)
+	copyg.node_to_index = copy(g.node_to_index)
+	return copyg
+end
+
+function Base.reverse(g::NetworkXDiGraph{T}) where {T<:Integer}
+	reversed = NetworkXDiGraph{T}(g.pygraph.reverse(copy=true))
+	reversed.nodes = copy(g.nodes)
+	reversed.node_to_index = copy(g.node_to_index)
+	return reversed
+end
 
 end # module NetworkX

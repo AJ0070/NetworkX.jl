@@ -88,4 +88,37 @@ using PythonCall
         @test Interfaces.test(AbstractGraphInterface, NetworkXGraph, test_ugraphs)
         @test Interfaces.test(AbstractGraphInterface, NetworkXDiGraph, test_dgraphs)
     end
+
+    @testset "Deletion preserves wrapper order" begin
+        pyg = nx.path_graph(4)
+        gw = wrap_networkx(pyg)
+        @test rem_vertex!(gw, 2)
+        @test gw.nodes == Any[0, 3, 2]
+        @test gw.node_to_index == Dict{Any,Int}(0 => 1, 3 => 2, 2 => 3)
+
+        gw_copy = copy(gw)
+        @test gw_copy.nodes == gw.nodes
+        @test gw_copy.node_to_index == gw.node_to_index
+
+        gw_squash, vmap = squash(gw)
+        @test gw_squash.nodes == gw.nodes
+        @test gw_squash.node_to_index == gw.node_to_index
+        @test vmap == [1, 2, 3]
+
+        gw_batch = wrap_networkx(nx.path_graph(4))
+        @test rem_vertex!(gw_batch, 2)
+        @test rem_vertices!(gw_batch, [3]) == [1, 2, 0]
+        @test gw_batch.nodes == Any[0, 3]
+        @test gw_batch.node_to_index == Dict{Any,Int}(0 => 1, 3 => 2)
+
+        dg = wrap_networkx(nx.DiGraph([(1, 2), (2, 3), (3, 4)]))
+        @test rem_vertex!(dg, 2)
+        @test reverse(dg).nodes == dg.nodes
+    end
+
+    @testset "Duplicate edges are rejected" begin
+        gw = wrap_networkx(nx.path_graph(3))
+        @test !add_edge!(gw, 1, 2)
+        @test ne(gw) == 2
+    end
 end
