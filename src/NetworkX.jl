@@ -125,8 +125,6 @@ _node(g::AbstractNetworkXGraph, v::Integer) = g.nodes[Int(v)]
 _label_to_vertex(g::AbstractNetworkXGraph{T}, label) where {T<:Integer} =
 	g.node_to_index[label]::T
 _label_to_vertex(g::Graphs.AbstractGraph, label) = label
-_nodes_list(g::AbstractNetworkXGraph) = copy(g.nodes)
-_nodes_list(g::Graphs.AbstractGraph) = collect(Graphs.vertices(g))
 
 function Graphs.has_edge(g::AbstractNetworkXGraph, s, d)
 	Graphs.has_vertex(g, s) || return false
@@ -162,14 +160,19 @@ function Graphs.edges(g::AbstractNetworkXGraph{T}) where {T<:Integer}
 	]
 end
 
-Graphs.has_self_loops(g::AbstractNetworkXGraph) = pyconvert(Bool, g.pygraph.number_of_selfloops() > 0)
+Graphs.has_self_loops(g::AbstractNetworkXGraph) = pyconvert(Int, _nx().number_of_selfloops(g.pygraph)) > 0
 
 function Graphs.add_vertex!(g::AbstractNetworkXGraph{T}) where {T<:Integer}
 	new_index = T(Graphs.nv(g) + 1)
 	label = new_index
+	# Find a unique label if it already exists in the Python graph
+	while pyconvert(Bool, g.pygraph.has_node(label))
+		new_index += one(T)
+		label = new_index
+	end
 	g.pygraph.add_node(label)
 	push!(g.nodes, label)
-	g.node_to_index[label] = new_index
+	g.node_to_index[label] = T(length(g.nodes))
 	return true
 end
 
@@ -188,11 +191,18 @@ function Graphs.rem_edge!(g::AbstractNetworkXGraph, s, d)
 	return false
 end
 
-function Graphs.rem_vertex!(g::AbstractNetworkXGraph, v)
+function Graphs.rem_vertex!(g::AbstractNetworkXGraph{T}, v) where {T<:Integer}
 	Graphs.has_vertex(g, v) || return false
 	label = _node(g, v)
 	g.pygraph.remove_node(label)
-	refresh_index!(g)
+	# O(1) removal: swap with last node and pop
+	if v != length(g.nodes)
+		last_label = g.nodes[end]
+		g.nodes[v] = last_label
+		g.node_to_index[last_label] = T(v)
+	end
+	pop!(g.nodes)
+	delete!(g.node_to_index, label)
 	return true
 end
 
@@ -229,8 +239,5 @@ Base.copy(g::NetworkXDiGraph{T}) where {T<:Integer} = NetworkXDiGraph{T}(g.pygra
 
 Base.reverse(g::NetworkXDiGraph{T}) where {T<:Integer} =
 	NetworkXDiGraph{T}(g.pygraph.reverse(copy=true))
-
-_lookup_node(g::Graphs.AbstractGraph, v) = v
-_lookup_node(g::AbstractNetworkXGraph, v) = _node(g, v)
 
 end # module NetworkX
