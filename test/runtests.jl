@@ -4,11 +4,11 @@ using Base.Threads: nthreads
 using Graphs
 using GraphsInterfaceChecker
 using Interfaces
-using NetworkX
+using NetworkXGraphs
 using PythonCall
 
-@testset "NetworkX.jl" begin
-    nx = NetworkX.PythonNetworkX.networkx
+@testset "NetworkXGraphs.jl" begin
+    nx = NetworkXGraphs.PythonNetworkX.networkx
 
     @testset "Constructors and basic API" begin
         pyg = nx.Graph()

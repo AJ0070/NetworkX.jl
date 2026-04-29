@@ -1,6 +1,6 @@
-# NetworkX.jl
+# NetworkXGraphs.jl
 
-`NetworkX.jl` is a Julia wrapper around Python's `networkx` built on `PythonCall.jl`.
+`NetworkXGraphs.jl` is a Julia wrapper around Python's `networkx` built on `PythonCall.jl`.
 The current milestone is intentionally narrow: constructors plus the basic `Graphs.jl` API needed to pass `GraphsInterfaceChecker`.
 
 `networkx` is declared as a package dependency and is automatically installed via `CondaPkg.jl` — no manual Python setup required.
@@ -9,7 +9,7 @@ The current milestone is intentionally narrow: constructors plus the basic `Grap
 
 - Wrap `networkx.Graph`/`networkx.DiGraph` as `Graphs.AbstractGraph` using the `NetworkXGraph` / `NetworkXDiGraph` constructors
 - Convert between `Graphs.jl` graph types and Python `networkx` objects via `networkx_graph`
-- Access the raw Python `networkx` module through `NetworkX.PythonNetworkX`
+- Access the raw Python `networkx` module through `NetworkXGraphs.PythonNetworkX`
 - Validate interface conformance with `GraphsInterfaceChecker.jl`
 - Stress-test multi-threaded use of independent graphs to catch Python/GIL integration regressions
 
@@ -17,10 +17,10 @@ The current milestone is intentionally narrow: constructors plus the basic `Grap
 
 ```julia
 using Graphs
-using NetworkX
+using NetworkXGraphs
 
 # Access the raw Python networkx module
-nx = NetworkX.PythonNetworkX.networkx
+nx = NetworkXGraphs.PythonNetworkX.networkx
 
 # Create a Python networkx graph and wrap it as a Graphs.jl-compatible graph
 pyg = nx.path_graph(5)

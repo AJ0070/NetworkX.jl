@@ -1,4 +1,4 @@
-module NetworkX
+module NetworkXGraphs
 
 using Graphs
 using PythonCall: Py, pynew, pycopy!, pybuiltins, pyconvert, pyimport
@@ -10,7 +10,7 @@ export AbstractNetworkXGraph,
 	refresh_index!
 
 """
-	NetworkX.PythonNetworkX
+	NetworkXGraphs.PythonNetworkX
 
 Sub-module providing direct access to the Python `networkx` package.
 Use this namespace when you need raw Python networkx objects or algorithms
@@ -18,8 +18,8 @@ that are not yet wrapped by the Julia API.
 
 # Example
 ```julia
-using NetworkX
-nx = NetworkX.PythonNetworkX.networkx
+using NetworkXGraphs
+nx = NetworkXGraphs.PythonNetworkX.networkx
 pyg = nx.complete_graph(5)
 ```
 """
@@ -49,8 +49,8 @@ Wrap an undirected Python `networkx.Graph` as a `Graphs.AbstractGraph`.
 
 # Example
 ```julia
-using NetworkX
-nx = NetworkX.PythonNetworkX.networkx
+using NetworkXGraphs
+nx = NetworkXGraphs.PythonNetworkX.networkx
 pyg = nx.path_graph(5)
 gw = NetworkXGraph(pyg)
 ```
@@ -69,8 +69,8 @@ Wrap a directed Python `networkx.DiGraph` as a `Graphs.AbstractGraph`.
 
 # Example
 ```julia
-using NetworkX
-nx = NetworkX.PythonNetworkX.networkx
+using NetworkXGraphs
+nx = NetworkXGraphs.PythonNetworkX.networkx
 pyg = nx.DiGraph()
 pyg.add_edges_from([(1, 2), (2, 3)])
 gw = NetworkXDiGraph(pyg)
@@ -281,4 +281,4 @@ function Base.reverse(g::NetworkXDiGraph{T}) where {T<:Integer}
 	return reversed
 end
 
-end # module NetworkX
+end # module NetworkXGraphs
