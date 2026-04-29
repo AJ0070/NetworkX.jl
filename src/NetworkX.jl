@@ -1,14 +1,38 @@
 module NetworkX
 
 using Graphs
-using PythonCall: Py, pybuiltins, pyconvert, pyimport
+using PythonCall: Py, pynew, pycopy!, pybuiltins, pyconvert, pyimport
 
 export AbstractNetworkXGraph,
 	NetworkXGraph,
 	NetworkXDiGraph,
 	networkx_graph,
-	wrap_networkx,
 	refresh_index!
+
+"""
+	NetworkX.PythonNetworkX
+
+Sub-module providing direct access to the Python `networkx` package.
+Use this namespace when you need raw Python networkx objects or algorithms
+that are not yet wrapped by the Julia API.
+
+# Example
+```julia
+using NetworkX
+nx = NetworkX.PythonNetworkX.networkx
+pyg = nx.complete_graph(5)
+```
+"""
+module PythonNetworkX
+using PythonCall: pynew, pycopy!, pyimport
+
+"""The raw Python `networkx` module."""
+const networkx = pynew()
+
+function __init__()
+    pycopy!(networkx, pyimport("networkx"))
+end
+end # module PythonNetworkX
 
 """
 	AbstractNetworkXGraph{T} <: Graphs.AbstractGraph{T}
@@ -19,8 +43,17 @@ abstract type AbstractNetworkXGraph{T<:Integer} <: Graphs.AbstractGraph{T} end
 
 """
 	NetworkXGraph{T}(pygraph)
+	NetworkXGraph(pygraph)
 
-Wrapper for an undirected NetworkX graph.
+Wrap an undirected Python `networkx.Graph` as a `Graphs.AbstractGraph`.
+
+# Example
+```julia
+using NetworkX
+nx = NetworkX.PythonNetworkX.networkx
+pyg = nx.path_graph(5)
+gw = NetworkXGraph(pyg)
+```
 """
 mutable struct NetworkXGraph{T<:Integer} <: AbstractNetworkXGraph{T}
 	pygraph::Py
@@ -30,22 +63,24 @@ end
 
 """
 	NetworkXDiGraph{T}(pygraph)
+	NetworkXDiGraph(pygraph)
 
-Wrapper for a directed NetworkX graph.
+Wrap a directed Python `networkx.DiGraph` as a `Graphs.AbstractGraph`.
+
+# Example
+```julia
+using NetworkX
+nx = NetworkX.PythonNetworkX.networkx
+pyg = nx.DiGraph()
+pyg.add_edges_from([(1, 2), (2, 3)])
+gw = NetworkXDiGraph(pyg)
+```
 """
 mutable struct NetworkXDiGraph{T<:Integer} <: AbstractNetworkXGraph{T}
 	pygraph::Py
 	nodes::Vector{Any}
 	node_to_index::Dict{Any,T}
 end
-
-const _NX = Ref{Py}()
-
-_nx() = isassigned(_NX) ? _NX[] : (_NX[] = pyimport("networkx"))
-_pylist(x) = pybuiltins.list(x)
-_nodes(pygraph::Py) = pyconvert(Vector{Any}, _pylist(pygraph.nodes()))
-_edges(pygraph::Py) = pyconvert(Vector{Tuple{Any,Any}}, _pylist(pygraph.edges()))
-_neighbors(pyiter) = pyconvert(Vector{Any}, _pylist(pyiter))
 
 function _node_to_index(nodes::Vector{Any}, ::Type{T}) where {T<:Integer}
 	mapping = Dict{Any,T}()
@@ -56,9 +91,8 @@ function _node_to_index(nodes::Vector{Any}, ::Type{T}) where {T<:Integer}
 end
 
 function refresh_index!(g::AbstractNetworkXGraph{T}) where {T<:Integer}
-	nodes = _nodes(g.pygraph)
-	g.nodes = nodes
-	g.node_to_index = _node_to_index(nodes, T)
+	g.nodes = pyconvert(Vector{Any}, pybuiltins.list(g.pygraph.nodes()))
+	g.node_to_index = _node_to_index(g.nodes, T)
 	return g
 end
 
@@ -86,32 +120,21 @@ end
 NetworkXDiGraph(pygraph::Py) = NetworkXDiGraph{Int}(pygraph)
 
 """
-	wrap_networkx(pygraph; T=Int)
-
-Wrap a NetworkX Python graph object as a `Graphs.AbstractGraph` implementation.
-"""
-function wrap_networkx(pygraph::Py; T::Type{<:Integer}=Int)
-	return pyconvert(Bool, pygraph.is_directed()) ? NetworkXDiGraph{T}(pygraph) :
-		   NetworkXGraph{T}(pygraph)
-end
-
-"""
 	networkx_graph(g)
 
 Convert a `Graphs.AbstractGraph` to a Python NetworkX graph object.
+Returns the underlying Python object for `AbstractNetworkXGraph` wrappers,
+or creates a new Python networkx graph for any other `Graphs.AbstractGraph`.
 """
 networkx_graph(g::AbstractNetworkXGraph) = g.pygraph
 
 function networkx_graph(g::Graphs.AbstractGraph)
-	nx = _nx()
+	nx = PythonNetworkX.networkx
 	pyg = Graphs.is_directed(g) ? nx.DiGraph() : nx.Graph()
 	pyg.add_nodes_from(collect(Graphs.vertices(g)))
 	pyg.add_edges_from([(Graphs.src(e), Graphs.dst(e)) for e in Graphs.edges(g)])
 	return pyg
 end
-
-wrap_networkx(g::Graphs.AbstractGraph{T}) where {T<:Integer} =
-	wrap_networkx(networkx_graph(g); T=T)
 
 Graphs.is_directed(::Type{<:NetworkXGraph}) = false
 Graphs.is_directed(::NetworkXGraph) = false
@@ -127,9 +150,6 @@ Graphs.eltype(::Type{G}) where {T<:Integer,G<:AbstractNetworkXGraph{T}} = T
 Graphs.eltype(::AbstractNetworkXGraph{T}) where {T<:Integer} = T
 
 _node(g::AbstractNetworkXGraph, v::Integer) = g.nodes[Int(v)]
-_label_to_vertex(g::AbstractNetworkXGraph{T}, label) where {T<:Integer} =
-	g.node_to_index[label]::T
-_label_to_vertex(g::Graphs.AbstractGraph, label) = label
 
 function Graphs.has_edge(g::AbstractNetworkXGraph, s, d)
 	Graphs.has_vertex(g, s) || return false
@@ -138,7 +158,7 @@ function Graphs.has_edge(g::AbstractNetworkXGraph, s, d)
 end
 
 function _mapped_neighbors(g::AbstractNetworkXGraph{T}, pyiter) where {T<:Integer}
-	py_ns = _neighbors(pyiter)
+	py_ns = pyconvert(Vector{Any}, pybuiltins.list(pyiter))
 	return T[g.node_to_index[n] for n in py_ns]
 end
 
@@ -160,12 +180,14 @@ function Graphs.inneighbors(g::NetworkXDiGraph{T}, v) where {T<:Integer}
 end
 
 function Graphs.edges(g::AbstractNetworkXGraph{T}) where {T<:Integer}
+	py_edges = pyconvert(Vector{Tuple{Any,Any}}, pybuiltins.list(g.pygraph.edges()))
 	return Graphs.Edge{T}[
-		Graphs.Edge{T}(g.node_to_index[u], g.node_to_index[v]) for (u, v) in _edges(g.pygraph)
+		Graphs.Edge{T}(g.node_to_index[u], g.node_to_index[v]) for (u, v) in py_edges
 	]
 end
 
-Graphs.has_self_loops(g::AbstractNetworkXGraph) = pyconvert(Int, _nx().number_of_selfloops(g.pygraph)) > 0
+Graphs.has_self_loops(g::AbstractNetworkXGraph) =
+	pyconvert(Int, PythonNetworkX.networkx.number_of_selfloops(g.pygraph)) > 0
 
 function Graphs.add_vertex!(g::AbstractNetworkXGraph{T}) where {T<:Integer}
 	new_index = T(Graphs.nv(g) + 1)
@@ -234,25 +256,19 @@ function Graphs.rem_vertices!(g::AbstractNetworkXGraph{T}, vs; keep_order::Bool=
 end
 
 function Graphs.squash(g::AbstractNetworkXGraph{T}) where {T<:Integer}
-	copyg = wrap_networkx(g.pygraph.copy(); T=Int)
+	copyg = typeof(g)(g.pygraph.copy())
 	copyg.nodes = copy(g.nodes)
 	_refresh_index_from_nodes!(copyg)
 	return copyg, collect(Graphs.vertices(g))
 end
 
-Graphs.zero(::Type{<:NetworkXGraph{T}}) where {T<:Integer} = wrap_networkx(_nx().Graph(); T=T)
+Graphs.zero(::Type{<:NetworkXGraph{T}}) where {T<:Integer} =
+	NetworkXGraph{T}(PythonNetworkX.networkx.Graph())
 Graphs.zero(::Type{<:NetworkXDiGraph{T}}) where {T<:Integer} =
-	wrap_networkx(_nx().DiGraph(); T=T)
+	NetworkXDiGraph{T}(PythonNetworkX.networkx.DiGraph())
 
-function Base.copy(g::NetworkXGraph{T}) where {T<:Integer}
-	copyg = NetworkXGraph{T}(g.pygraph.copy())
-	copyg.nodes = copy(g.nodes)
-	copyg.node_to_index = copy(g.node_to_index)
-	return copyg
-end
-
-function Base.copy(g::NetworkXDiGraph{T}) where {T<:Integer}
-	copyg = NetworkXDiGraph{T}(g.pygraph.copy())
+function Base.copy(g::AbstractNetworkXGraph{T}) where {T<:Integer}
+	copyg = typeof(g)(g.pygraph.copy())
 	copyg.nodes = copy(g.nodes)
 	copyg.node_to_index = copy(g.node_to_index)
 	return copyg

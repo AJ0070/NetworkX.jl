@@ -1,9 +1,5 @@
 using Test
-using CondaPkg
 using Base.Threads: nthreads
-
-CondaPkg.add("networkx")
-CondaPkg.resolve()
 
 using Graphs
 using GraphsInterfaceChecker
@@ -12,12 +8,12 @@ using NetworkX
 using PythonCall
 
 @testset "NetworkX.jl" begin
-    nx = pyimport("networkx")
+    nx = NetworkX.PythonNetworkX.networkx
 
     @testset "Constructors and basic API" begin
         pyg = nx.Graph()
         pyg.add_edges_from([(10, 20), (20, 30), (30, 40)])
-        gw = wrap_networkx(pyg)
+        gw = NetworkXGraph(pyg)
         @test gw isa NetworkXGraph
         @test !is_directed(gw)
         @test nv(gw) == 4
@@ -31,7 +27,7 @@ using PythonCall
 
         pydg = nx.DiGraph()
         pydg.add_edges_from([(1, 2), (2, 3), (4, 2)])
-        dgw = wrap_networkx(pydg)
+        dgw = NetworkXDiGraph(pydg)
         @test dgw isa NetworkXDiGraph
         @test is_directed(dgw)
         @test nv(dgw) == 4
@@ -41,7 +37,8 @@ using PythonCall
 
         # Graphs.jl -> networkx -> wrapper roundtrip on basic structure.
         g = path_graph(5)
-        gw2 = wrap_networkx(networkx_graph(g))
+        pyg2 = networkx_graph(g)
+        gw2 = NetworkXGraph(pyg2)
         @test nv(gw2) == 5
         @test ne(gw2) == 4
         @test has_edge(gw2, 2, 3)
@@ -54,7 +51,7 @@ using PythonCall
             PythonCall.GIL.@unlock Threads.@threads for i in eachindex(results)
                 pyg = PythonCall.GIL.@lock nx.Graph()
                 PythonCall.GIL.@lock pyg.add_edges_from([(1, 2), (2, 3), (3, 4), (4, 5), (5, 5 + i)])
-                gw = PythonCall.GIL.@lock wrap_networkx(pyg)
+                gw = PythonCall.GIL.@lock NetworkXGraph(pyg)
                 ok = gw isa NetworkXGraph
                 ok &= PythonCall.GIL.@lock nv(gw) == 6
                 ok &= PythonCall.GIL.@lock ne(gw) == 5
@@ -63,7 +60,7 @@ using PythonCall
 
                 pydg = PythonCall.GIL.@lock nx.DiGraph()
                 PythonCall.GIL.@lock pydg.add_edges_from([(1, 2), (2, 3), (3, 1)])
-                dgw = PythonCall.GIL.@lock wrap_networkx(pydg)
+                dgw = PythonCall.GIL.@lock NetworkXDiGraph(pydg)
                 ok &= dgw isa NetworkXDiGraph
                 ok &= PythonCall.GIL.@lock is_directed(dgw)
                 ok &= PythonCall.GIL.@lock outneighbors(dgw, 2) == [3]
@@ -82,8 +79,8 @@ using PythonCall
         dg1 = nx.DiGraph()
         dg1.add_edges_from([(1, 2), (2, 3), (3, 4)])
         dg2 = nx.complete_graph(4, create_using=nx.DiGraph())
-        test_ugraphs = [wrap_networkx(ug1), wrap_networkx(ug2)]
-        test_dgraphs = [wrap_networkx(dg1), wrap_networkx(dg2)]
+        test_ugraphs = [NetworkXGraph(ug1), NetworkXGraph(ug2)]
+        test_dgraphs = [NetworkXDiGraph(dg1), NetworkXDiGraph(dg2)]
 
         @test Interfaces.test(AbstractGraphInterface, NetworkXGraph, test_ugraphs)
         @test Interfaces.test(AbstractGraphInterface, NetworkXDiGraph, test_dgraphs)
@@ -91,7 +88,7 @@ using PythonCall
 
     @testset "Deletion preserves wrapper order" begin
         pyg = nx.path_graph(4)
-        gw = wrap_networkx(pyg)
+        gw = NetworkXGraph(pyg)
         @test rem_vertex!(gw, 2)
         @test gw.nodes == Any[0, 3, 2]
         @test gw.node_to_index == Dict{Any,Int}(0 => 1, 3 => 2, 2 => 3)
@@ -105,19 +102,19 @@ using PythonCall
         @test gw_squash.node_to_index == gw.node_to_index
         @test vmap == [1, 2, 3]
 
-        gw_batch = wrap_networkx(nx.path_graph(4))
+        gw_batch = NetworkXGraph(nx.path_graph(4))
         @test rem_vertex!(gw_batch, 2)
         @test rem_vertices!(gw_batch, [3]) == [1, 2, 0]
         @test gw_batch.nodes == Any[0, 3]
         @test gw_batch.node_to_index == Dict{Any,Int}(0 => 1, 3 => 2)
 
-        dg = wrap_networkx(nx.DiGraph([(1, 2), (2, 3), (3, 4)]))
+        dg = NetworkXDiGraph(nx.DiGraph([(1, 2), (2, 3), (3, 4)]))
         @test rem_vertex!(dg, 2)
         @test reverse(dg).nodes == dg.nodes
     end
 
     @testset "Duplicate edges are rejected" begin
-        gw = wrap_networkx(nx.path_graph(3))
+        gw = NetworkXGraph(nx.path_graph(3))
         @test !add_edge!(gw, 1, 2)
         @test ne(gw) == 2
     end
