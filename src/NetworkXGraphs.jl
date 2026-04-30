@@ -1,7 +1,7 @@
 module NetworkXGraphs
 
-using Graphs
-using PythonCall: Py, pynew, pycopy!, pybuiltins, pyconvert, pyimport
+import Graphs
+using PythonCall: Py, pybuiltins, pyconvert
 
 export AbstractNetworkXGraph,
     NetworkXGraph,

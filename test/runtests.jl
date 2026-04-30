@@ -1,13 +1,33 @@
 using Test
 using Base.Threads: nthreads
 
+using Aqua
+using ExplicitImports
 using Graphs
 using GraphsInterfaceChecker
 using Interfaces
+if isempty(VERSION.prerelease)
+    using JET
+end
 using NetworkXGraphs
 using PythonCall
 
 @testset "NetworkXGraphs.jl" begin
+    @testset "Code quality (Aqua.jl)" begin
+        Aqua.test_all(NetworkXGraphs; ambiguities=false)
+    end
+
+    if isempty(VERSION.prerelease)
+        @testset "Code quality (JET.jl)" begin
+            JET.test_package(NetworkXGraphs; target_defined_modules=true, mode=:typo)
+        end
+    end
+
+    @testset "Explicit imports (ExplicitImports.jl)" begin
+        @test check_no_implicit_imports(NetworkXGraphs) === nothing
+        @test check_no_stale_explicit_imports(NetworkXGraphs) === nothing
+    end
+
     nx = NetworkXGraphs.PythonNetworkX.networkx
 
     @testset "Constructors and basic API" begin

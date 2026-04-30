@@ -1,7 +1,10 @@
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 GraphsInterfaceChecker = "3bef136c-15ff-4091-acbb-1a4aafe67608"
 Interfaces = "85a1e053-f937-4924-92a5-1367d23b7b87"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 NetworkXGraphs = "7cfbcbcf-cd41-4fe6-b90f-527da21b4c9a"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
